@@ -1,44 +1,71 @@
 name: CI
-on: [push, pull_request, workflow_dispatch]
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+
 jobs:
   tests:
     name: "Python ${{ matrix.python-version }} on ${{ matrix.os }}"
     runs-on: "${{ matrix.os }}"
     strategy:
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11", "pypy-3.9"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
         os: ["ubuntu-latest", "macos-latest", "windows-latest"]
     steps:
-      - uses: "actions/checkout@v3"
+      - uses: "actions/checkout@v4"
+
       - name: "Cache for wikipedia flags"
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         env:
           cache-name: "cache-wikipedia-flags"
         with:
           path: "tests/samples/wikipedia/flags"
           key: "wikipedia-flags-${{ matrix.python-version }}-${{ matrix.os }}"
+
       - name: "Cache for wikipedia symbols"
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         env:
           cache-name: "cache-wikipedia-symbols"
         with:
           path: "tests/samples/wikipedia/symbols"
           key: "wikipedia-symbols-${{ matrix.python-version }}-${{ matrix.os }}"
+
       - name: "Cache for w3c svg12 tinytestsuite"
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         env:
           cache-name: "cache-w3c-svg12-tinytestsuite"
         with:
           path: "tests/samples/W3C_SVG_12_TinyTestSuite"
           key: "w3c-svg12-tinytestsuite-${{ matrix.python-version }}-${{ matrix.os }}"
-      - uses: "actions/setup-python@v4"
+
+      - name: Deps for pycairo wheel
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get -qq update
+          sudo apt-get install -yqq libcairo2-dev
+
+      - name: Macos dependencies
+        if: runner.os == 'MacOS'
+        run: |
+          brew install cairo
+
+      - uses: "actions/setup-python@v5"
         with:
           python-version: "${{ matrix.python-version }}"
+
       - name: "Install dependencies"
         run: |
           python -VV
           python -m site
           python -m pip install --upgrade pip setuptools wheel
           python -m pip install --upgrade virtualenv tox tox-gh-actions
+
       - name: "Run tox targets for ${{ matrix.python-version }}"
-        run: "python -m tox"
+        run: |
+          tox
+        env:
+          PLATFORM: ${{ matrix.os }}
